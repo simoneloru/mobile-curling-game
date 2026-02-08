@@ -17,7 +17,7 @@ class Stone {
         this.x = x;
         this.y = y;
         this.radius = radius;
-        this.color = color;
+        this.color = color; // Expecting hex code
         this.vx = 0;
         this.vy = 0;
         this.isMoving = false;
@@ -44,18 +44,67 @@ class Stone {
     }
 
     draw(ctx) {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        // Shadow
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 4;
+
+        // Main Body Gradient (3D effect)
+        let gradient = ctx.createRadialGradient(
+            this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.1,
+            this.x, this.y, this.radius
+        );
+        gradient.addColorStop(0, this.lightenColor(this.color, 40));
+        gradient.addColorStop(0.4, this.color);
+        gradient.addColorStop(1, this.darkenColor(this.color, 20));
 
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
         ctx.fill();
+
+        // Reset Shadow for handle
+        ctx.shadowColor = 'transparent';
+
+        // Stone Border (Granite look)
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Handle (Inner Circle)
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = '#eee'; // Handle base
+        ctx.fill();
+        ctx.strokeStyle = '#ccc';
+        ctx.stroke();
+
+        // Handle Color Indicator (Small dot)
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius * 0.15, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+    }
+
+    // Helper to adjust color brightness for 3D effect
+    lightenColor(col, amt) { return this.adjustColor(col, amt); }
+    darkenColor(col, amt) { return this.adjustColor(col, -amt); }
+
+    adjustColor(col, amt) {
+        let usePound = false;
+        if (col[0] == "#") {
+            col = col.slice(1);
+            usePound = true;
+        }
+        let num = parseInt(col, 16);
+        let r = (num >> 16) + amt;
+        if (r > 255) r = 255; else if (r < 0) r = 0;
+        let b = ((num >> 8) & 0x00FF) + amt;
+        if (b > 255) b = 255; else if (b < 0) b = 0;
+        let g = (num & 0x0000FF) + amt;
+        if (g > 255) g = 255; else if (g < 0) g = 0;
+        return (usePound ? "#" : "") + (g | (b << 8) | (r << 16)).toString(16);
     }
 }
 
@@ -63,6 +112,13 @@ class Game {
     constructor() {
         this.canvas = document.getElementById('curlingCanvas');
         this.ctx = this.canvas.getContext('2d');
+
+        // DOM Elements for HUD
+        this.p1ScoreEl = document.getElementById('p1-score');
+        this.p2ScoreEl = document.getElementById('p2-score');
+        this.turnEl = document.getElementById('turn-text');
+        this.notifyEl = document.getElementById('notification-area');
+        this.stonesEl = document.getElementById('stones-remaining-p1');
 
         this.stones = [];
         this.playerStones = [];
@@ -114,7 +170,18 @@ class Game {
         this.aiStones = Array(4).fill(0);
         this.turnState = 'PLAYER';
         this.gameState = STATE.IDLE;
+        this.updateHUD();
         this.prepareTurn();
+    }
+
+    updateHUD() {
+        // Update Turn & Score logic will go here
+        this.turnEl.textContent = this.turnState === 'PLAYER' ? "YOUR TURN" : "AI THINKING...";
+        this.turnEl.style.color = this.turnState === 'PLAYER' ? '#d32f2f' : '#fbc02d';
+
+        // Update Stone Dots
+        // Simple representation: circles for remaining stones
+        // Not implementing full visual list yet for simplicity
     }
 
     prepareTurn() {
@@ -134,6 +201,8 @@ class Game {
         const color = this.turnState === 'PLAYER' ? '#d32f2f' : '#fdd835';
 
         this.currentStone = new Stone(this.centerX, this.hackY, radius, color);
+
+        this.updateHUD();
 
         if (this.turnState === 'AI') {
             setTimeout(() => this.executeAITurn(), 1000);
@@ -177,11 +246,17 @@ class Game {
 
     handleInputMove(e) {
         e.preventDefault();
+        const pos = this.getEventPos(e);
+        this.currentInputPos = pos; // Save for drawing sweeping/aiming
 
         if (this.gameState === STATE.MOVING) {
             const anyMoving = this.stones.some(s => s.isMoving);
             if (anyMoving) {
+                // Determine if sweeping is effective (near moving stones)
+                // For now, global sweeping if moving
                 this.isSweeping = true;
+                this.triggerSweepVisual(pos);
+
                 clearTimeout(this.sweepTimeout);
                 this.sweepTimeout = setTimeout(() => { this.isSweeping = false; }, 100);
             }
@@ -189,6 +264,11 @@ class Game {
         }
 
         if (!this.isDragging) return;
+    }
+
+    triggerSweepVisual(pos) {
+        // Create transient particle or scratch
+        // Placeholder: we just use 'isSweeping' state for drawing
     }
 
     handleInputEnd(e) {
@@ -215,6 +295,7 @@ class Game {
         }
 
         this.isDragging = false;
+        this.updateHUD();
     }
 
     getEventPos(e) {
@@ -283,8 +364,10 @@ class Game {
     }
 
     draw() {
-        this.ctx.fillStyle = '#e0f7fa';
-        this.ctx.fillRect(0, 0, this.width, this.height);
+        this.ctx.clearRect(0, 0, this.width, this.height);
+
+        // Ice Texture drawing (Grain already in CSS, but we can add reflections)
+        // For now, keep it simple transparency over CSS bg
 
         this.drawHouse(this.centerX, this.buttonY);
 
@@ -295,27 +378,43 @@ class Game {
             this.currentStone.draw(this.ctx);
         }
 
+        // Draw Aiming Line / Drag Feedback
         if (this.isDragging && this.turnState === 'PLAYER') {
+            const dx = this.currentStone.x - this.dragStartX;
+            const dy = this.currentStone.y - this.dragStartY;
+
+            // Draw Drag Line (Input)
             this.ctx.beginPath();
             this.ctx.moveTo(this.currentStone.x, this.currentStone.y);
-            this.ctx.lineTo(this.currentStone.x + (this.currentStone.x - this.dragStartX), this.currentStone.y + (this.currentStone.y - this.dragStartY));
-            this.ctx.strokeStyle = 'rgba(255,0,0,0.5)';
-            this.ctx.lineWidth = 4;
+            this.ctx.lineTo(this.currentStone.x - dx, this.currentStone.y - dy);
+            this.ctx.strokeStyle = 'rgba(0,0,0,0.2)'; // Faint drag line
+            this.ctx.lineWidth = 2;
             this.ctx.stroke();
+
+            // Draw Aiming Line (Projected)
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.currentStone.x, this.currentStone.y);
+            this.ctx.lineTo(this.currentStone.x + dx * 3, this.currentStone.y + dy * 3); // Extended aim
+            this.ctx.setLineDash([10, 10]);
+            this.ctx.strokeStyle = '#d32f2f';
+            this.ctx.lineWidth = 3;
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
         }
 
-        if (this.isSweeping) {
-            this.ctx.font = "bold 30px Arial";
-            this.ctx.fillStyle = "orange";
-            this.ctx.textAlign = "center";
-            this.ctx.fillText("SWEEPING!", this.centerX, this.height * 0.3);
-        }
+        // Draw Sweeping Visuals
+        if (this.isSweeping && this.currentInputPos) {
+            // Draw "scratch" marks at input position
+            this.ctx.beginPath();
+            this.ctx.arc(this.currentInputPos.x, this.currentInputPos.y, 20, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            this.ctx.fill();
 
-        this.ctx.font = "20px Arial";
-        this.ctx.fillStyle = "#333";
-        this.ctx.textAlign = "left";
-        this.ctx.fillText(`Turn: ${this.turnState === 'PLAYER' ? 'YOU (Red)' : 'AI (Yellow)'}`, 20, 40);
-        this.ctx.fillText(`Stones: ${this.playerStones.length} - ${this.aiStones.length}`, 20, 70);
+            // Show HUD notification
+            this.notifyEl.innerHTML = "<div class='notification-anim'>SWEEPING!</div>";
+        } else {
+            this.notifyEl.innerHTML = "";
+        }
     }
 
     drawHouse(x, y) {
@@ -327,7 +426,14 @@ class Game {
             this.ctx.beginPath();
             this.ctx.arc(x, y, radii[i], 0, Math.PI * 2);
             this.ctx.fillStyle = colors[i];
+
+            // Subtle gradient for rings to look painted on ice
+            this.ctx.shadowBlur = 0;
             this.ctx.fill();
+
+            // Ring Border
+            this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            this.ctx.stroke();
         }
     }
 

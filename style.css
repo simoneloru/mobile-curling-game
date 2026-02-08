@@ -1,27 +1,42 @@
-body, html {
+:root {
+    --ice-bg: #ecf6fa;
+    --ice-grain: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNjY2MiIG9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=');
+    --glass-bg: rgba(255, 255, 255, 0.25);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --primary-red: #d32f2f;
+    --primary-yellow: #fdd835;
+    --text-dark: #2c3e50;
+    --font-main: 'Montserrat', sans-serif;
+}
+
+body,
+html {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
     overflow: hidden;
     background-color: #222;
-    touch-action: none; /* Prevent default touch actions like scrolling */
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    touch-action: none;
+    font-family: var(--font-main);
     user-select: none;
+    -webkit-user-select: none;
 }
 
 #game-container {
     position: relative;
     width: 100%;
     height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    background: var(--ice-bg);
+    background-image: var(--ice-grain);
+    /* Subtle noise texture */
 }
 
 canvas {
-    background-color: #fff; /* Ice color */
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 #ui-layer {
@@ -30,30 +45,142 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none; /* Let touches pass through to canvas */
+    pointer-events: none;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 20px;
+    padding: 16px;
     box-sizing: border-box;
+    z-index: 10;
 }
 
-#score-board {
-    display: flex;
-    justify-content: space-between;
-    color: #333;
-    font-weight: bold;
-    font-size: 1.2rem;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 10px;
-    border-radius: 8px;
+/* Glassmorphism Panels */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: var(--glass-shadow);
+    padding: 12px 20px;
     pointer-events: auto;
 }
 
+/* Top Bar: Scoreboard */
+#top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-dark);
+}
+
+.score-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.score-box .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.score-box .score {
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.score-box.player .score {
+    color: var(--primary-red);
+}
+
+.score-box.opponent .score {
+    color: #fbc02d;
+    text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+#turn-indicator {
+    background: #fff;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    color: var(--text-dark);
+    transition: all 0.3s ease;
+}
+
+/* Bottom Bar: Controls & Stone Count */
+#bottom-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-height: 80px;
+    justify-content: center;
+}
+
 #controls-hint {
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+/* Stone Indicator Dots */
+.stone-counter {
+    display: flex;
+    gap: 6px;
+}
+
+.stone-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #ccc;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.stone-dot.active {
+    background-color: var(--primary-red);
+    box-shadow: 0 2px 4px rgba(211, 47, 47, 0.4);
+}
+
+/* Notification Area */
+#notification-area {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     text-align: center;
-    color: #555;
-    font-size: 1rem;
-    padding-bottom: 20px;
-    opacity: 0.7;
+    pointer-events: none;
+    width: 100%;
+}
+
+.notification-anim {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #ff9800;
+    text-shadow: 2px 2px 0px #fff;
+    animation: pulse 0.8s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
