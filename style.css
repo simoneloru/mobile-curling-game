@@ -198,15 +198,69 @@ canvas {
     transition: height 0.1s ease-out;
 }
 
-/* Notification Area */
-#notification-area {
+/* Main Menu */
+#main-menu {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    pointer-events: none;
+    top: 0;
+    left: 0;
     width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    /* Dark transparent bg */
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+}
+
+.menu-content {
+    text-align: center;
+    width: 80%;
+    max-width: 300px;
+}
+
+.menu-content h1 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    background: linear-gradient(45deg, #eee, #999);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.menu-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #d32f2f, #b71c1c);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(211, 47, 47, 0.4);
+}
+
+.menu-btn:active {
+    transform: scale(0.98);
+}
+
+.menu-btn small {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+.menu-footer {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    opacity: 0.5;
 }
 
 .notification-anim {

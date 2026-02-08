@@ -41,6 +41,20 @@
                 <!-- Central Notification Area (for "SWEEPING!" etc) -->
                 <div id="notification-area"></div>
 
+                <!-- Main Menu Overlay -->
+                <div id="main-menu">
+                    <div class="menu-content">
+                        <h1>Curling Pro</h1>
+                        <button class="menu-btn" onclick="window.gameInstance.startGame('1P')">
+                            1 Player <small>(vs AI)</small>
+                        </button>
+                        <button class="menu-btn" onclick="window.gameInstance.startGame('2P')">
+                            2 Players <small>(Local)</small>
+                        </button>
+                        <div class="menu-footer">v1.1 - Realistic Physics Update</div>
+                    </div>
+                </div>
+
                 <div id="bottom-bar" class="glass-panel">
                     <div class="stone-counter">
                         <div id="stones-remaining-p1" class="stones-p1"></div>
