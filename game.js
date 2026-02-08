@@ -152,24 +152,23 @@ class Game {
 
 
     resize() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
+        const container = document.getElementById('game-container');
+        this.width = container.clientWidth;
+        this.height = container.clientHeight;
+
         this.canvas.width = this.width;
         this.canvas.height = this.height;
 
-        // Mobile Safe Areas (approximate based on CSS heights)
-        const topUIHeight = 80;
-        const bottomUIHeight = 120;
+        // Mobile Safe Areas
+        const topUIHeight = 60; // Matches CSS
+        const bottomUIHeight = 100; // Matches CSS + margin
 
-        // Playable Area
         this.playableTop = topUIHeight;
         this.playableHeight = this.height - topUIHeight - bottomUIHeight;
 
         this.centerX = this.width / 2;
-
-        // Adjust positions to be inside playable area
-        this.buttonY = this.playableTop + (this.playableHeight * 0.2); // Target near top of playable area
-        this.hackY = this.height - bottomUIHeight - (this.playableHeight * 0.15); // Start near bottom of playable
+        this.buttonY = this.playableTop + (this.playableHeight * 0.25);
+        this.hackY = this.height - bottomUIHeight - (this.playableHeight * 0.1);
 
         this.rinkWidth = this.width;
     }
@@ -181,9 +180,7 @@ class Game {
         this.turnState = 'PLAYER';
         this.gameState = STATE.IDLE;
 
-        // Force resize to ensure positions are correct
         this.resize();
-
         this.updateHUD();
         this.prepareTurn();
     }
@@ -191,22 +188,22 @@ class Game {
     updateHUD() {
         this.turnEl.textContent = this.turnState === 'PLAYER' ? "YOUR TURN" : "AI THINKING...";
         this.turnEl.style.color = this.turnState === 'PLAYER' ? '#d32f2f' : '#fbc02d';
+
+        // Stone indicators could be better, but text is fine for now
+        this.p1ScoreEl.textContent = this.playerScore || 0;
+        this.p2ScoreEl.textContent = this.aiScore || 0;
     }
 
     prepareTurn() {
         if (this.playerStones.length === 0 && this.aiStones.length === 0) {
             this.gameState = STATE.END_FINISHED;
-            setTimeout(() => {
-                alert("End Finished! Reload to play again");
-                this.startNewEnd();
-            }, 1000);
+            this.calculateScore();
             return;
         }
 
         this.gameState = STATE.IDLE;
 
-        // Make stones slightly smaller for mobile
-        const radius = this.width * 0.035;
+        const radius = this.width * 0.045; // Slightly larger for better visibility
         const color = this.turnState === 'PLAYER' ? '#d32f2f' : '#fdd835';
 
         this.currentStone = new Stone(this.centerX, this.hackY, radius, color);
@@ -218,16 +215,74 @@ class Game {
         }
     }
 
+    calculateScore() {
+        // Find closest stone to button center
+        let closestDist = Infinity;
+        let winner = null;
+        let points = 0;
+
+        // Filter stones in house (approximate radius check)
+        const houseRadius = this.width * 0.35;
+
+        const validStones = this.stones.filter(s => {
+            const dist = Math.hypot(s.x - this.centerX, s.y - this.buttonY);
+            return dist < houseRadius + s.radius;
+        });
+
+        // Sort by distance
+        validStones.sort((a, b) => {
+            const distA = Math.hypot(a.x - this.centerX, a.y - this.buttonY);
+            const distB = Math.hypot(b.x - this.centerX, b.y - this.buttonY);
+            return distA - distB;
+        });
+
+        if (validStones.length > 0) {
+            const bestStone = validStones[0];
+            winner = bestStone.color === '#d32f2f' ? 'PLAYER' : 'AI';
+
+            // Count consecutive stones
+            for (let s of validStones) {
+                const sOwner = s.color === '#d32f2f' ? 'PLAYER' : 'AI';
+                if (sOwner === winner) {
+                    points++;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Update Total Score
+        if (!this.playerScore) this.playerScore = 0;
+        if (!this.aiScore) this.aiScore = 0;
+
+        let message = "No Score!";
+        if (winner === 'PLAYER') {
+            this.playerScore += points;
+            message = `YOU SCORE ${points} POINTS!`;
+        } else if (winner === 'AI') {
+            this.aiScore += points;
+            message = `AI SCORES ${points} POINTS!`;
+        }
+
+        this.updateHUD();
+
+        setTimeout(() => {
+            alert(`${message}\n\nStart Next End?`);
+            this.startNewEnd();
+        }, 500);
+    }
+
     executeAITurn() {
         if (this.turnState !== 'AI') return;
 
         const targetX = this.centerX;
         const targetY = this.buttonY;
 
-        const errorX = (Math.random() - 0.5) * (this.width * 0.1);
-        // Calibrate force for new distance
+        const errorX = (Math.random() - 0.5) * (this.width * 0.15);
         const distY = this.hackY - targetY;
-        const forceY = -distY * 0.155; // Keep calibration for now
+
+        // Physics calibration for resize
+        const forceY = -distY * 0.150;
         const forceX = (targetX + errorX - this.centerX) * 0.05;
 
         this.currentStone.vx = forceX;
@@ -245,7 +300,7 @@ class Game {
         const pos = this.getEventPos(e);
 
         // Increase touch area for grabbing the stone
-        const hitArea = this.currentStone.radius * 2.5;
+        const hitArea = this.currentStone.radius * 3.0; // Easier to grab
         const dx = pos.x - this.currentStone.x;
         const dy = pos.y - this.currentStone.y;
 
@@ -308,9 +363,24 @@ class Game {
     }
 
     getEventPos(e) {
-        if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        if (e.changedTouches && e.changedTouches.length > 0) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
-        return { x: e.clientX, y: e.clientY };
+        const rect = this.canvas.getBoundingClientRect();
+        let clientX, clientY;
+
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
     }
 
     update() {
