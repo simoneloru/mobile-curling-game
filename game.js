@@ -150,18 +150,28 @@ class Game {
         requestAnimationFrame(this.loop);
     }
 
+
     resize() {
         this.width = window.innerWidth;
         this.height = window.innerHeight;
         this.canvas.width = this.width;
         this.canvas.height = this.height;
 
-        this.rinkWidth = this.width;
-        this.rinkHeight = this.height;
+        // Mobile Safe Areas (approximate based on CSS heights)
+        const topUIHeight = 80;
+        const bottomUIHeight = 120;
+
+        // Playable Area
+        this.playableTop = topUIHeight;
+        this.playableHeight = this.height - topUIHeight - bottomUIHeight;
+
         this.centerX = this.width / 2;
-        this.centerY = this.height / 2;
-        this.hackY = this.height - 100;
-        this.buttonY = this.height / 4;
+
+        // Adjust positions to be inside playable area
+        this.buttonY = this.playableTop + (this.playableHeight * 0.2); // Target near top of playable area
+        this.hackY = this.height - bottomUIHeight - (this.playableHeight * 0.15); // Start near bottom of playable
+
+        this.rinkWidth = this.width;
     }
 
     startNewEnd() {
@@ -170,26 +180,24 @@ class Game {
         this.aiStones = Array(4).fill(0);
         this.turnState = 'PLAYER';
         this.gameState = STATE.IDLE;
+
+        // Force resize to ensure positions are correct
+        this.resize();
+
         this.updateHUD();
         this.prepareTurn();
     }
 
     updateHUD() {
-        // Update Turn & Score logic will go here
         this.turnEl.textContent = this.turnState === 'PLAYER' ? "YOUR TURN" : "AI THINKING...";
         this.turnEl.style.color = this.turnState === 'PLAYER' ? '#d32f2f' : '#fbc02d';
-
-        // Update Stone Dots
-        // Simple representation: circles for remaining stones
-        // Not implementing full visual list yet for simplicity
     }
 
     prepareTurn() {
         if (this.playerStones.length === 0 && this.aiStones.length === 0) {
             this.gameState = STATE.END_FINISHED;
-            // Simple alert for now
             setTimeout(() => {
-                alert("End Finished! Reload to play again (Scoring coming soon)");
+                alert("End Finished! Reload to play again");
                 this.startNewEnd();
             }, 1000);
             return;
@@ -197,7 +205,8 @@ class Game {
 
         this.gameState = STATE.IDLE;
 
-        const radius = this.width * STONE_RADIUS_RATIO;
+        // Make stones slightly smaller for mobile
+        const radius = this.width * 0.035;
         const color = this.turnState === 'PLAYER' ? '#d32f2f' : '#fdd835';
 
         this.currentStone = new Stone(this.centerX, this.hackY, radius, color);
@@ -212,12 +221,13 @@ class Game {
     executeAITurn() {
         if (this.turnState !== 'AI') return;
 
-        // Simple AI: Aim for button
         const targetX = this.centerX;
         const targetY = this.buttonY;
 
         const errorX = (Math.random() - 0.5) * (this.width * 0.1);
-        const forceY = -(this.hackY - targetY) * 0.155;
+        // Calibrate force for new distance
+        const distY = this.hackY - targetY;
+        const forceY = -distY * 0.155; // Keep calibration for now
         const forceX = (targetX + errorX - this.centerX) * 0.05;
 
         this.currentStone.vx = forceX;
@@ -234,10 +244,12 @@ class Game {
         e.preventDefault();
         const pos = this.getEventPos(e);
 
+        // Increase touch area for grabbing the stone
+        const hitArea = this.currentStone.radius * 2.5;
         const dx = pos.x - this.currentStone.x;
         const dy = pos.y - this.currentStone.y;
 
-        if (Math.hypot(dx, dy) < this.currentStone.radius * 2) {
+        if (Math.hypot(dx, dy) < hitArea) {
             this.isDragging = true;
             this.dragStartX = pos.x;
             this.dragStartY = pos.y;
@@ -247,16 +259,13 @@ class Game {
     handleInputMove(e) {
         e.preventDefault();
         const pos = this.getEventPos(e);
-        this.currentInputPos = pos; // Save for drawing sweeping/aiming
+        this.currentInputPos = pos;
 
         if (this.gameState === STATE.MOVING) {
             const anyMoving = this.stones.some(s => s.isMoving);
             if (anyMoving) {
-                // Determine if sweeping is effective (near moving stones)
-                // For now, global sweeping if moving
                 this.isSweeping = true;
                 this.triggerSweepVisual(pos);
-
                 clearTimeout(this.sweepTimeout);
                 this.sweepTimeout = setTimeout(() => { this.isSweeping = false; }, 100);
             }
@@ -267,8 +276,7 @@ class Game {
     }
 
     triggerSweepVisual(pos) {
-        // Create transient particle or scratch
-        // Placeholder: we just use 'isSweeping' state for drawing
+        // Placeholder
     }
 
     handleInputEnd(e) {
@@ -284,7 +292,8 @@ class Game {
 
         const forceMultiplier = 0.15;
 
-        if (Math.hypot(throwX, throwY) > 10) {
+        // Lower threshold for tap vs swipe
+        if (Math.hypot(throwX, throwY) > 20) {
             this.currentStone.vx = throwX * forceMultiplier;
             this.currentStone.vy = throwY * forceMultiplier;
             this.currentStone.isMoving = true;
@@ -310,6 +319,14 @@ class Game {
             this.stones.forEach(stone => {
                 stone.update();
                 if (stone.isMoving) anyMoving = true;
+
+                // Boundaries (Bounce off sides)
+                if (stone.x - stone.radius < 0) { stone.x = stone.radius; stone.vx *= -0.5; }
+                if (stone.x + stone.radius > this.width) { stone.x = this.width - stone.radius; stone.vx *= -0.5; }
+
+                // Back/Front walls
+                if (stone.y - stone.radius < 0) { stone.y = stone.radius; stone.vy *= -0.5; }
+                if (stone.y + stone.radius > this.height) { stone.y = this.height - stone.radius; stone.vy *= -0.5; }
             });
 
             // Collisions
@@ -323,11 +340,6 @@ class Game {
                 this.turnState = this.turnState === 'PLAYER' ? 'AI' : 'PLAYER';
                 this.prepareTurn();
             }
-        }
-
-        if (this.gameState === STATE.IDLE && this.currentStone) {
-            this.currentStone.x = this.centerX;
-            this.currentStone.y = this.hackY;
         }
     }
 
@@ -352,6 +364,11 @@ class Game {
             s2.vx = v2Final.x * cos - v2Final.y * sin;
             s2.vy = v2Final.y * cos + v2Final.x * sin;
 
+            // Inelastic restitution (stones lose energy on hit)
+            const restitution = 0.8;
+            s1.vx *= restitution; s1.vy *= restitution;
+            s2.vx *= restitution; s2.vy *= restitution;
+
             s1.isMoving = true;
             s2.isMoving = true;
 
@@ -366,51 +383,57 @@ class Game {
     draw() {
         this.ctx.clearRect(0, 0, this.width, this.height);
 
-        // Ice Texture drawing (Grain already in CSS, but we can add reflections)
-        // For now, keep it simple transparency over CSS bg
-
+        // Draw House
         this.drawHouse(this.centerX, this.buttonY);
 
-        // Stones on ice
+        // Draw Hog Lines (Visual reference)
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, this.buttonY + this.width * 0.6); // Front Hog Line approx
+        this.ctx.lineTo(this.width, this.buttonY + this.width * 0.6);
+        this.ctx.strokeStyle = 'rgba(200, 0, 0, 0.3)';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+
         this.stones.forEach(stone => stone.draw(this.ctx));
 
         if (this.gameState === STATE.IDLE && this.currentStone) {
             this.currentStone.draw(this.ctx);
+
+            // Draw "Touch Area" debug (optional, helpful for understanding grab size)
+            // this.ctx.beginPath();
+            // this.ctx.arc(this.currentStone.x, this.currentStone.y, this.currentStone.radius * 2.5, 0, Math.PI*2);
+            // this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            // this.ctx.stroke();
         }
 
-        // Draw Aiming Line / Drag Feedback
         if (this.isDragging && this.turnState === 'PLAYER') {
             const dx = this.currentStone.x - this.dragStartX;
             const dy = this.currentStone.y - this.dragStartY;
 
-            // Draw Drag Line (Input)
             this.ctx.beginPath();
             this.ctx.moveTo(this.currentStone.x, this.currentStone.y);
             this.ctx.lineTo(this.currentStone.x - dx, this.currentStone.y - dy);
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.2)'; // Faint drag line
+            this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
             this.ctx.lineWidth = 2;
             this.ctx.stroke();
 
-            // Draw Aiming Line (Projected)
+            // Aim Line
             this.ctx.beginPath();
             this.ctx.moveTo(this.currentStone.x, this.currentStone.y);
-            this.ctx.lineTo(this.currentStone.x + dx * 3, this.currentStone.y + dy * 3); // Extended aim
+            this.ctx.lineTo(this.currentStone.x + dx * 3, this.currentStone.y + dy * 3);
             this.ctx.setLineDash([10, 10]);
             this.ctx.strokeStyle = '#d32f2f';
             this.ctx.lineWidth = 3;
+            // Add arrow head later
             this.ctx.stroke();
             this.ctx.setLineDash([]);
         }
 
-        // Draw Sweeping Visuals
         if (this.isSweeping && this.currentInputPos) {
-            // Draw "scratch" marks at input position
             this.ctx.beginPath();
-            this.ctx.arc(this.currentInputPos.x, this.currentInputPos.y, 20, 0, Math.PI * 2);
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            this.ctx.arc(this.currentInputPos.x, this.currentInputPos.y, 15, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             this.ctx.fill();
-
-            // Show HUD notification
             this.notifyEl.innerHTML = "<div class='notification-anim'>SWEEPING!</div>";
         } else {
             this.notifyEl.innerHTML = "";
@@ -418,7 +441,8 @@ class Game {
     }
 
     drawHouse(x, y) {
-        const houseRadius = this.width * 0.4;
+        // Scaled down house
+        const houseRadius = this.width * 0.35;
         const colors = ['#d32f2f', '#fff', '#1976d2', '#fff'];
         const radii = [1, 0.66, 0.33, 0.1].map(r => r * houseRadius);
 
@@ -426,13 +450,8 @@ class Game {
             this.ctx.beginPath();
             this.ctx.arc(x, y, radii[i], 0, Math.PI * 2);
             this.ctx.fillStyle = colors[i];
-
-            // Subtle gradient for rings to look painted on ice
-            this.ctx.shadowBlur = 0;
             this.ctx.fill();
-
-            // Ring Border
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            this.ctx.strokeStyle = 'rgba(0,0,0,0.05)';
             this.ctx.stroke();
         }
     }

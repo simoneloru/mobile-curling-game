@@ -57,12 +57,12 @@ canvas {
 /* Glassmorphism Panels */
 .glass-panel {
     background: var(--glass-bg);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     border: 1px solid var(--glass-border);
-    border-radius: 16px;
+    border-radius: 12px;
     box-shadow: var(--glass-shadow);
-    padding: 12px 20px;
+    padding: 8px 12px;
     pointer-events: auto;
 }
 
@@ -72,6 +72,8 @@ canvas {
     justify-content: space-between;
     align-items: center;
     color: var(--text-dark);
+    height: 60px;
+    /* Fixed height for JS calculation */
 }
 
 .score-box {
@@ -118,9 +120,12 @@ canvas {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    min-height: 80px;
+    gap: 4px;
+    height: 80px;
+    /* Fixed height */
     justify-content: center;
+    margin-bottom: 20px;
+    /* Space from bottom edge */
 }
 
 #controls-hint {
