@@ -171,6 +171,33 @@ canvas {
     box-shadow: 0 2px 4px rgba(211, 47, 47, 0.4);
 }
 
+/* Power Bar */
+#power-bar-container {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 10px;
+    overflow: hidden;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+    display: none;
+    /* Hidden by default, shown on drag */
+}
+
+#power-bar-fill {
+    width: 100%;
+    height: 0%;
+    background: linear-gradient(to top, #4caf50, #ffeb3b, #f44336);
+    position: absolute;
+    bottom: 0;
+    transition: height 0.1s ease-out;
+}
+
 /* Notification Area */
 #notification-area {
     position: absolute;

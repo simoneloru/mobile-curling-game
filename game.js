@@ -297,10 +297,13 @@ class Game {
     handleInputStart(e) {
         if (this.turnState !== 'PLAYER' || this.gameState !== STATE.IDLE) return;
         e.preventDefault();
+
+        // Detect Input Type
+        this.inputType = (e.touches) ? 'touch' : 'mouse';
+
         const pos = this.getEventPos(e);
 
-        // Increase touch area for grabbing the stone
-        const hitArea = this.currentStone.radius * 3.0; // Easier to grab
+        const hitArea = this.currentStone.radius * 3.0;
         const dx = pos.x - this.currentStone.x;
         const dy = pos.y - this.currentStone.y;
 
@@ -308,6 +311,9 @@ class Game {
             this.isDragging = true;
             this.dragStartX = pos.x;
             this.dragStartY = pos.y;
+
+            // Show Power Bar
+            document.getElementById('power-bar-container').style.display = 'block';
         }
     }
 
@@ -327,7 +333,17 @@ class Game {
             return;
         }
 
-        if (!this.isDragging) return;
+        if (this.isDragging) {
+            // Update Power Bar
+            const dx = this.currentStone.x - pos.x; // Drag Back logic
+            const dy = this.currentStone.y - pos.y;
+            const dist = Math.hypot(dx, dy);
+
+            const maxPull = this.height * 0.25; // Max pull distance relative to screen height
+            const powerPercent = Math.min(dist / maxPull, 1) * 100;
+
+            document.getElementById('power-bar-fill').style.height = `${powerPercent}%`;
+        }
     }
 
     triggerSweepVisual(pos) {
@@ -338,19 +354,46 @@ class Game {
         if (!this.isDragging) return;
         e.preventDefault();
 
+        // Hide Power Bar
+        document.getElementById('power-bar-container').style.display = 'none';
+        document.getElementById('power-bar-fill').style.height = '0%';
+
         const pos = this.getEventPos(e);
+        // On touch end, we might not have pos, use last known input pos if needed, 
+        // but for drag calculation we used start vs end. 
+        // Better to use current input pos tracked during move? 
+        // Actually drag is diff between start and current. 
+        // Let's use the last tracked position from move if available, or event pos.
+
+        // Simpler: Just rely on dragStartX - currentPos (if we tracked it) or event pos. 
+        // Touchend changedTouches usually works.
         const dragEndX = pos.x;
         const dragEndY = pos.y;
 
         const throwX = this.dragStartX - dragEndX;
         const throwY = this.dragStartY - dragEndY;
 
-        const forceMultiplier = 0.15;
+        // Input Tuning
+        let forceMultiplier = 0.15; // Base
+        if (this.inputType === 'mouse') forceMultiplier = 0.12; // Lower for mouse (precision)
+        if (this.inputType === 'touch') forceMultiplier = 0.18; // Higher for touch (responsiveness)
 
-        // Lower threshold for tap vs swipe
+        const MAX_SPEED = 25; // Speed Clamp
+
         if (Math.hypot(throwX, throwY) > 20) {
-            this.currentStone.vx = throwX * forceMultiplier;
-            this.currentStone.vy = throwY * forceMultiplier;
+            let vx = throwX * forceMultiplier;
+            let vy = throwY * forceMultiplier;
+
+            // Clamp Speed
+            const speed = Math.hypot(vx, vy);
+            if (speed > MAX_SPEED) {
+                const scale = MAX_SPEED / speed;
+                vx *= scale;
+                vy *= scale;
+            }
+
+            this.currentStone.vx = vx;
+            this.currentStone.vy = vy;
             this.currentStone.isMoving = true;
 
             this.stones.push(this.currentStone);
@@ -477,26 +520,58 @@ class Game {
         }
 
         if (this.isDragging && this.turnState === 'PLAYER') {
-            const dx = this.currentStone.x - this.dragStartX;
+            // this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            // this.ctx.stroke();
+        }
+
+        if (this.isDragging && this.turnState === 'PLAYER') {
+            const dx = this.currentStone.x - this.dragStartX; // Vector from Start to Current (negative of pull)
             const dy = this.currentStone.y - this.dragStartY;
 
-            this.ctx.beginPath();
-            this.ctx.moveTo(this.currentStone.x, this.currentStone.y);
-            this.ctx.lineTo(this.currentStone.x - dx, this.currentStone.y - dy);
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-            this.ctx.lineWidth = 2;
-            this.ctx.stroke();
+            // Invert for aiming (Pull back -> Shoot forward)
+            // But dragStartX is where we clicked (on stone), current is where we dragged to.
+            // If I drag down, y increases. dy is positive. 
+            // I want to shoot up. So aim vector is (startX - currentX, startY - currentY)
+            // Which is exactly (dx, dy) as defined above? No.
+            // dx = currentStone.x (constant) - dragStartX (constant). Wait.
+            // In handleInputMove: currentInputPos is updating. 
+            // But here I'm using dragStartX. 
+            // AND I AM NOT UPDATING currentStone.x in drag (it stays at hack). 
+            // So I need (currentStone.x - currentInputPos.x) for the vector.
 
-            // Aim Line
+            // Let's use the currentInputPos if available, or just calculate from logic
+            let aimX = 0, aimY = 0;
+            if (this.currentInputPos) {
+                aimX = this.currentStone.x - this.currentInputPos.x;
+                aimY = this.currentStone.y - this.currentInputPos.y;
+            }
+
+            // Calculate Power for Color
+            const pullDist = Math.hypot(aimX, aimY);
+            const maxPull = this.height * 0.25;
+            const powerRatio = Math.min(pullDist / maxPull, 1.0);
+
+            let arrowColor = '#4caf50'; // Green
+            if (powerRatio > 0.4) arrowColor = '#ffeb3b'; // Yellow
+            if (powerRatio > 0.75) arrowColor = '#f44336'; // Red
+
+            // Draw Aim Line
             this.ctx.beginPath();
             this.ctx.moveTo(this.currentStone.x, this.currentStone.y);
-            this.ctx.lineTo(this.currentStone.x + dx * 3, this.currentStone.y + dy * 3);
-            this.ctx.setLineDash([10, 10]);
-            this.ctx.strokeStyle = '#d32f2f';
-            this.ctx.lineWidth = 3;
-            // Add arrow head later
+            this.ctx.lineTo(this.currentStone.x + aimX * 3, this.currentStone.y + aimY * 3);
+            this.ctx.setLineDash([15, 10]);
+            this.ctx.strokeStyle = arrowColor;
+            this.ctx.lineWidth = 4 + (powerRatio * 4); // Thicker with power
             this.ctx.stroke();
             this.ctx.setLineDash([]);
+
+            // Draw Pull Line (Visualizing the specific drag)
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.currentStone.x, this.currentStone.y);
+            this.ctx.lineTo(this.currentStone.x - aimX, this.currentStone.y - aimY);
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
         }
 
         if (this.isSweeping && this.currentInputPos) {
