@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Curling</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="curlingCanvas"></canvas>
+        <div id="ui-layer">
+            <div id="score-board">
+                <span id="p1-score">P1: 0</span>
+                <span id="turn-indicator">Turn: P1</span>
+                <span id="p2-score">AI: 0</span>
+            </div>
+            <div id="controls-hint">Drag to throw!</div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
